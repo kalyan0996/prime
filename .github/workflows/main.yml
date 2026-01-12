@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CONTAINER_NAME: ${{ secrets.STAGING_CONTAINER_NAME }}
-      CONTAINER_PORT: ${{ secrets.STAGING_CONTAINER_PORT }}
+      CONTAINER_NAME: ${{ secrets.MAIN_CONTAINER_NAME }}
+      CONTAINER_PORT: ${{ secrets.MAIN_CONTAINER_PORT }}
 
     steps:
       - name: Checkout code
@@ -28,26 +28,26 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.STAGING_PRIVATE_KEY }}" > ~/.ssh/staging_key
-          chmod 600 ~/.ssh/staging_key
+          echo "${{ secrets.MAIN_PRIVATE_KEY }}" > ~/.ssh/main_key
+          chmod 600 ~/.ssh/main_key
 
       - name: Upload archive
         run: |
-          scp -i ~/.ssh/staging_key \
+          scp -i ~/.ssh/main_key \
             -o StrictHostKeyChecking=no \
             project.tar.gz \
-            ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_DIR }}/project.tar.gz
+            ${{ secrets.MAIN_USER }}@${{ secrets.MAIN_HOST }}:${{ secrets.MAIN_DIR }}/project.tar.gz
 
       - name: Deploy on Server
         run: |
-          ssh -i ~/.ssh/staging_key \
+          ssh -i ~/.ssh/main_key \
             -o StrictHostKeyChecking=no \
-            ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+            ${{ secrets.MAIN_USER }}@${{ secrets.MAIN_HOST }} << 'EOF'
 
           set -e
 
-          BASE_DIR="${{ secrets.STAGING_DIR }}"
-          APP_DIR="$BASE_DIR/${{ secrets.STAGING_CONTAINER_NAME }}/${{ secrets.STAGING_CONTAINER_PORT }}"
+          BASE_DIR="${{ secrets.MAIN_DIR }}"
+          APP_DIR="$BASE_DIR/${{ secrets.MAIN_CONTAINER_NAME }}/${{ secrets.MAIN_CONTAINER_PORT }}"
 
           mkdir -p "$APP_DIR"
 
@@ -57,23 +57,23 @@ jobs:
 
           echo "🧪 Writing .env"
           cat > "$APP_DIR/.env" <<ENV
-          ${{ secrets.STAGING_ENV }}
+          ${{ secrets.MAIN_ENV }}
           ENV
 
           cd "$APP_DIR"
 
           echo "🚀 Building Docker image..."
-          docker build -t "${{ secrets.STAGING_CONTAINER_NAME }}" .
+          docker build -t "${{ secrets.MAIN_CONTAINER_NAME }}" .
 
           echo "🧹 Removing old container..."
-          docker rm -f "${{ secrets.STAGING_CONTAINER_NAME }}" || true
+          docker rm -f "${{ secrets.MAIN_CONTAINER_NAME }}" || true
           echo "🚀 Running container..."
           docker run -d \
-            --name "${{ secrets.STAGING_CONTAINER_NAME }}" \
+            --name "${{ secrets.MAIN_CONTAINER_NAME }}" \
             --restart always \
             --env-file .env \
-            -p "${{ secrets.STAGING_CONTAINER_PORT }}:${{ secrets.STAGING_CONTAINER_PORT }}" \
-            "${{ secrets.STAGING_CONTAINER_NAME }}"
+            -p "${{ secrets.MAIN_CONTAINER_PORT }}:${{ secrets.MAIN_CONTAINER_PORT }}" \
+            "${{ secrets.MAIN_CONTAINER_NAME }}"
           echo "🔥 Cleaning .env"
           shred -u .env || rm -f .env
 
@@ -82,4 +82,4 @@ jobs:
 
       - name: Cleanup SSH key
         if: always()
-        run: rm -f ~/.ssh/staging_key
+        run: rm -f ~/.ssh/main_key
